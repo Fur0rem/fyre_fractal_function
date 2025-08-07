@@ -132,17 +132,34 @@ pub fn plot_results(
         ));
     }
 
-    for i in 1..x.len() {
-        y[i] = (y[i] - y[0]) / (x[i] - x[0]); // slope
+    {
+        let mut fg = Figure::new();
+
+        fg.axes2d().lines(
+            &x,
+            &y,
+            &[Caption("f(x)"), Color(gnuplot::RGBString("black"))],
+        );
+        fg.save_to_png(format!("{}.png", output_file), 1920, 1080)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+        fg.show().unwrap();
+
+        for i in 1..x.len() {
+            y[i] = (y[i] - y[0]) / (x[i] - x[0]); // slope
+        }
     }
 
     let mut fg = Figure::new();
+
     fg.axes2d().lines(
         &x,
         &y,
-        &[Caption("f(x)"), Color(gnuplot::RGBString("black"))],
+        &[
+            Caption("Slope f(0) <-> f(x)"),
+            Color(gnuplot::RGBString("black")),
+        ],
     );
-    fg.save_to_png(format!("{}.png", output_file), 1920, 1080)
+    fg.save_to_png(format!("{}_slope.png", output_file), 1920, 1080)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
     fg.show().unwrap();
 
