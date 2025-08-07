@@ -27,8 +27,28 @@ pub fn compute_all(
     writer: &mut BufWriter<File>,
 ) -> std::io::Result<()> {
     let mut x = start;
+    let mut a_pows = Vec::with_capacity((sum_nb_terms + 1) as usize);
+    let mut b_pows = Vec::with_capacity((sum_nb_terms + 1) as usize);
+    a_pows.push(1.0); // a^0
+    b_pows.push(1.0); // b^0
+    for i in 0..=sum_nb_terms {
+        a_pows.push(a.powi(i as i32));
+        b_pows.push(b.powi(i as i32));
+    }
     while x <= end {
-        let result = f(x, a, b, sum_nb_terms);
+        let mut result = 0.0;
+        for i in 0..=sum_nb_terms {
+            let new_term = a_pows[i as usize] * (b_pows[i as usize] * x * PI).cos();
+            if new_term.is_nan() {
+                eprintln!(
+                    "Warning: Computation resulted in NaN for x = {}, n = {}! Will return early!",
+                    x, i
+                );
+                break;
+            }
+            result += new_term;
+        }
+
         writeln!(writer, "f({}) = {}", x, result)?;
         x += increment;
     }
