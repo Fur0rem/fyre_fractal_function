@@ -269,6 +269,7 @@ dependencies = [
  "clap",
  "criterion",
  "gnuplot",
+ "iterator_ilp",
  "rayon",
 ]
 
@@ -315,6 +316,15 @@ name = "is_terminal_polyfill"
 version = "1.70.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7943c866cc5cd64cbc25b2e01621d07fa8eb2a1a23160ee81ce38704e97b8ecf"
+
+[[package]]
+name = "iterator_ilp"
+version = "3.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "362fd240dc941f9db4c09cd6ba08ac2648122d19ec503556df1c6d7595b7dd65"
+dependencies = [
+ "num-traits",
+]
 
 [[package]]
 name = "itertools"

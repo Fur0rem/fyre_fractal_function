@@ -40,4 +40,4 @@ criterion_group! {
     config = Criterion::default().sample_size(10);
     targets = bigger_bench
 }
-criterion_main!(benches);
+criterion_main!(benches, big_benches);

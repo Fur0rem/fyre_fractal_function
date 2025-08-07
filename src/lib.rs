@@ -17,6 +17,7 @@ pub fn f(x: f64, a: f64, b: f64, n: u32) -> f64 {
     return sum;
 }
 
+use iterator_ilp::IteratorILP;
 use rayon::prelude::*;
 
 pub fn compute_all(
@@ -28,7 +29,6 @@ pub fn compute_all(
     sum_nb_terms: u32,
     writer: &mut BufWriter<File>,
 ) -> std::io::Result<()> {
-    let mut x = start;
     let size = (sum_nb_terms + 1) as usize;
     let mut a_pows = Vec::with_capacity(size);
     let mut b_pows = Vec::with_capacity(size);
@@ -60,11 +60,13 @@ pub fn compute_all(
             .par_iter()
             .map(|&i| {
                 let x = start + i as f64 * increment;
-                let mut result = 0.0;
-                for j in 0..=total_non_nans_terms {
-                    let new_term = a_pows[j] * (b_pows[j] * x).cos();
-                    result += new_term;
-                }
+
+                let result = (0..total_non_nans_terms).into_iter().fold_ilp::<4, f64>(
+                    || 0.0,
+                    |acc, j| acc + a_pows[j] * (b_pows[j] * x).cos(),
+                    |acc1, acc2| acc1 + acc2,
+                );
+
                 result
             })
             .collect();
@@ -73,11 +75,6 @@ pub fn compute_all(
         }
     }
 
-    // for (x, result) in x_values.iter().zip(results.iter()) {
-    //     writeln!(writer, "f({}) = {}", x, result)?;
-    // }
-
-    // Flush the writer to ensure all data is written to the file
     writer
         .flush()
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
@@ -135,6 +132,10 @@ pub fn plot_results(
         ));
     }
 
+    for i in 1..x.len() {
+        y[i] = (y[i] - y[0]) / (x[i] - x[0]); // slope
+    }
+
     let mut fg = Figure::new();
     fg.axes2d().lines(
         &x,
@@ -147,25 +148,39 @@ pub fn plot_results(
 
     match nb_groups {
         Some(nb) => {
-            let mut counts = vec![0; nb + 1];
-            let min = y.iter().cloned().fold(f64::INFINITY, f64::min);
-            let max = y.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+            let mut counts = vec![0usize; nb + 1];
+            let min = &y.iter().cloned().fold(f64::INFINITY, f64::min);
+            let max = &y.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
             let range = max - min;
             let increment = range / nb as f64;
-            for &value in &y {
+            for value in &y {
                 let index = ((value - min) / increment).floor() as usize;
                 counts[index] += 1;
             }
+            let mut groups = Vec::with_capacity(nb + 1);
+            for i in 0..=nb {
+                groups.push(min + i as f64 * increment);
+            }
+
+            let number_of_points = y.len();
+            let probas = counts
+                .iter()
+                .map(|&c| c as f64 / number_of_points as f64)
+                .collect::<Vec<_>>();
+
             let mut fg = Figure::new();
             fg.axes2d().boxes(
-                &x,
-                &counts,
-                &[Caption("Counts"), Color(gnuplot::RGBString("blue"))],
+                &groups,
+                &probas,
+                &[Caption("Probability"), Color(gnuplot::RGBString("blue"))],
             );
-            fg.save_to_png(&format!("{}_counts_plot.png", output_file), 1920, 1080)
+            fg.save_to_png(&format!("{}_probability_plot.png", output_file), 1920, 1080)
                 .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
             fg.show().unwrap();
-            println!("Counts plot saved to {}_counts_plot.png", output_file);
+            println!(
+                "Probabilities plot saved to {}_probability_plot.png",
+                output_file
+            );
 
             // Write counts to a file
             let counts_file = format!("{}_counts.txt", output_file);

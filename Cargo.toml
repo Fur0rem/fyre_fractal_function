@@ -7,12 +7,19 @@ edition = "2021"
 clap = { version = "4.5.*", features = ["derive"] }
 criterion = "0.7.0"
 gnuplot = "0.0.46"
+iterator_ilp = "3.0.1"
 rayon = "1.10.0"
-
 
 [profile.release]
 lto = "fat"
 codegen-units = 1
+panic = "abort"
+
+[profile.bench]
+lto = "fat"
+codegen-units = 1
+debug = true
+panic = "abort"
 
 [[bench]]
 name = "bench"

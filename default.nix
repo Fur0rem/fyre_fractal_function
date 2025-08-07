@@ -9,16 +9,19 @@ pkgs.mkShell {
 		gcc
 		coreutils-prefixed
 		pkg-config
-		# openssl
-		# chromedriver
 		gnuplot
+
+		# perf
+		linuxPackages.perf
 		
 		# Github
 		git
 	];
 	RUSTC_VERSION = "stable";
+	NIX_ENFORCE_NO_NATIVE = 0;
 
 	shellHook = ''
 		cargo install cargo-pgo
+		cargo install flamegraph
 	'';
 }
