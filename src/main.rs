@@ -31,6 +31,10 @@ pub struct Args {
     /// The increment to use for the computations
     #[arg(short, long)]
     increment: Option<f64>,
+
+    /// Number of chunks to group by when counting
+    #[arg(long, default_value = "100000")]
+    nb_groups: Option<usize>,
 }
 
 fn main() {
@@ -97,5 +101,5 @@ fn main() {
     println!("Results saved to {}", output_file_path);
     println!("Done!");
 
-    plot_results(&output_file_path, &format!("{}.png", output_files)).unwrap();
+    plot_results(&output_file_path, &output_files, args.nb_groups).unwrap();
 }

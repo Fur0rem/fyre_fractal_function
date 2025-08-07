@@ -51,42 +51,31 @@ pub fn compute_all(
         }
     }
 
-    // while x <= end {
-    //     let mut result = 0.0;
-    //     for i in 0..=total_non_nans_terms {
-    //         let new_term = a_pows[i as usize] * (b_pows[i as usize] * x).cos();
-    //         result += new_term;
-    //     }
-    //     writeln!(writer, "f({}) = {}", x, result)?;
-    //     x += increment;
-    // }
-
     let nb_computations = ((end - start) / increment).ceil() as usize;
-    let mut x_values = Vec::with_capacity(nb_computations);
-    let mut results = Vec::with_capacity(nb_computations);
-    const PAR_CHUNK_SIZE: usize = 10000; // Adjust this based on your system's capabilities
-    for chunk in (0..=(nb_computations - 1)).step_by(PAR_CHUNK_SIZE) {
-        let end_chunk = std::cmp::min(chunk + PAR_CHUNK_SIZE, nb_computations);
-        for i in chunk..end_chunk {
-            x_values.push(start + i as f64 * increment);
-        }
-        let chunk_results: Vec<f64> = x_values
+    const PAR_CHUNK_SIZE: usize = 100000;
+    for is in (0..nb_computations).step_by(PAR_CHUNK_SIZE) {
+        let chunk_end = (is + PAR_CHUNK_SIZE).min(nb_computations);
+        let chunk: Vec<usize> = (is..chunk_end).collect();
+        let results: Vec<f64> = chunk
             .par_iter()
-            .map(|&x| {
+            .map(|&i| {
+                let x = start + i as f64 * increment;
                 let mut result = 0.0;
-                for i in 0..=total_non_nans_terms {
-                    let new_term = a_pows[i] * (b_pows[i] * x).cos();
+                for j in 0..=total_non_nans_terms {
+                    let new_term = a_pows[j] * (b_pows[j] * x).cos();
                     result += new_term;
                 }
                 result
             })
             .collect();
-        results.extend(chunk_results);
+        for (i, result) in chunk.iter().zip(results.iter()) {
+            writeln!(writer, "f({}) = {}", start + *i as f64 * increment, result)?;
+        }
     }
 
-    for (x, result) in x_values.iter().zip(results.iter()) {
-        writeln!(writer, "f({}) = {}", x, result)?;
-    }
+    // for (x, result) in x_values.iter().zip(results.iter()) {
+    //     writeln!(writer, "f({}) = {}", x, result)?;
+    // }
 
     // Flush the writer to ensure all data is written to the file
     writer
@@ -94,7 +83,11 @@ pub fn compute_all(
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
 }
 
-pub fn plot_results(result_file: &str, output_file: &str) -> std::io::Result<()> {
+pub fn plot_results(
+    result_file: &str,
+    output_file: &str,
+    nb_groups: Option<usize>,
+) -> std::io::Result<()> {
     use gnuplot::{Caption, Color, Figure};
 
     let file = File::open(result_file)?;
@@ -148,8 +141,50 @@ pub fn plot_results(result_file: &str, output_file: &str) -> std::io::Result<()>
         &y,
         &[Caption("f(x)"), Color(gnuplot::RGBString("black"))],
     );
-    fg.save_to_png(output_file, 1920, 1080)
+    fg.save_to_png(format!("{}.png", output_file), 1920, 1080)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
     fg.show().unwrap();
+
+    match nb_groups {
+        Some(nb) => {
+            let mut counts = vec![0; nb + 1];
+            let min = y.iter().cloned().fold(f64::INFINITY, f64::min);
+            let max = y.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+            let range = max - min;
+            let increment = range / nb as f64;
+            for &value in &y {
+                let index = ((value - min) / increment).floor() as usize;
+                counts[index] += 1;
+            }
+            let mut fg = Figure::new();
+            fg.axes2d().boxes(
+                &x,
+                &counts,
+                &[Caption("Counts"), Color(gnuplot::RGBString("blue"))],
+            );
+            fg.save_to_png(&format!("{}_counts_plot.png", output_file), 1920, 1080)
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+            fg.show().unwrap();
+            println!("Counts plot saved to {}_counts_plot.png", output_file);
+
+            // Write counts to a file
+            let counts_file = format!("{}_counts.txt", output_file);
+            let mut counts_writer = File::create(&counts_file).unwrap();
+            for (i, count) in counts.iter().enumerate() {
+                writeln!(
+                    counts_writer,
+                    "({}, {}) : {}",
+                    min + i as f64 * increment,
+                    min + (i + 1) as f64 * increment,
+                    count
+                )
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+            }
+            println!("Counts saved to {}", counts_file);
+        }
+        None => {
+            println!("No grouping specified, skipping counts plot.");
+        }
+    }
     Ok(())
 }

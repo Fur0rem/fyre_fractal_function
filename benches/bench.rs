@@ -34,10 +34,9 @@ pub fn bigger_bench(c: &mut Criterion) {
     std::fs::remove_file("results/bigger_bench.txt").unwrap();
 }
 
-// criterion_group!(benches, bench_single, bench_all);
+criterion_group!(benches, bench_single, bench_all);
 criterion_group! {
-    name = benches;
-    // This can be any expression that returns a `Criterion` object.
+    name = big_benches;
     config = Criterion::default().sample_size(10);
     targets = bigger_bench
 }
