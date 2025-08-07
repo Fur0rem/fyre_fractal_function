@@ -1,7 +1,5 @@
 use clap::Parser;
-use fyre_fractal_function::{compute_all, f, plot_results};
-use std::io::Write;
-use std::{thread::sleep, time::Duration};
+use fyre_fractal_function::{compute_all, plot_results};
 
 #[derive(Parser, Debug)]
 #[command(version, about)]
@@ -67,7 +65,6 @@ fn main() {
         args.a, args.b, args.sum_nb_terms
     );
     println!("Results will be saved in {}", args.output_dir);
-    sleep(Duration::from_secs(1));
 
     // Open the output directory and output file
     std::fs::create_dir_all(&args.output_dir).expect("Failed to create output directory");

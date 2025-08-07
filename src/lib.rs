@@ -17,6 +17,8 @@ pub fn f(x: f64, a: f64, b: f64, n: u32) -> f64 {
     return sum;
 }
 
+use rayon::prelude::*;
+
 pub fn compute_all(
     start: f64,
     end: f64,
@@ -27,30 +29,63 @@ pub fn compute_all(
     writer: &mut BufWriter<File>,
 ) -> std::io::Result<()> {
     let mut x = start;
-    let mut a_pows = Vec::with_capacity((sum_nb_terms + 1) as usize);
-    let mut b_pows = Vec::with_capacity((sum_nb_terms + 1) as usize);
-    a_pows.push(1.0); // a^0
-    b_pows.push(1.0); // b^0
-    for i in 0..=sum_nb_terms {
-        a_pows.push(a.powi(i as i32));
-        b_pows.push(b.powi(i as i32));
-    }
-    while x <= end {
-        let mut result = 0.0;
-        for i in 0..=sum_nb_terms {
-            let new_term = a_pows[i as usize] * (b_pows[i as usize] * x * PI).cos();
-            if new_term.is_nan() {
-                eprintln!(
-                    "Warning: Computation resulted in NaN for x = {}, n = {}! Will return early!",
-                    x, i
-                );
-                break;
-            }
-            result += new_term;
+    let size = (sum_nb_terms + 1) as usize;
+    let mut a_pows = Vec::with_capacity(size);
+    let mut b_pows = Vec::with_capacity(size);
+    let mut total_non_nans_terms = sum_nb_terms as usize;
+    a_pows.push(1.0); // a^0 = 1
+    b_pows.push(PI); // b^0 * PI = 1 *
+    for i in 1..size {
+        let a_im1 = *a_pows.last().unwrap();
+        let b_im1 = *b_pows.last().unwrap();
+        a_pows.push(a_im1 * a);
+        b_pows.push(b_im1 * b);
+        if (end * b_pows[i]).is_infinite() {
+            eprintln!(
+                "Warning: Computation resulted in infinite value for b^{}! Will do only {} terms.",
+                i,
+                i - 1
+            );
+            total_non_nans_terms = i - 1;
+            break;
         }
+    }
 
+    // while x <= end {
+    //     let mut result = 0.0;
+    //     for i in 0..=total_non_nans_terms {
+    //         let new_term = a_pows[i as usize] * (b_pows[i as usize] * x).cos();
+    //         result += new_term;
+    //     }
+    //     writeln!(writer, "f({}) = {}", x, result)?;
+    //     x += increment;
+    // }
+
+    let nb_computations = ((end - start) / increment).ceil() as usize;
+    let mut x_values = Vec::with_capacity(nb_computations);
+    let mut results = Vec::with_capacity(nb_computations);
+    const PAR_CHUNK_SIZE: usize = 10000; // Adjust this based on your system's capabilities
+    for chunk in (0..=(nb_computations - 1)).step_by(PAR_CHUNK_SIZE) {
+        let end_chunk = std::cmp::min(chunk + PAR_CHUNK_SIZE, nb_computations);
+        for i in chunk..end_chunk {
+            x_values.push(start + i as f64 * increment);
+        }
+        let chunk_results: Vec<f64> = x_values
+            .par_iter()
+            .map(|&x| {
+                let mut result = 0.0;
+                for i in 0..=total_non_nans_terms {
+                    let new_term = a_pows[i] * (b_pows[i] * x).cos();
+                    result += new_term;
+                }
+                result
+            })
+            .collect();
+        results.extend(chunk_results);
+    }
+
+    for (x, result) in x_values.iter().zip(results.iter()) {
         writeln!(writer, "f({}) = {}", x, result)?;
-        x += increment;
     }
 
     // Flush the writer to ensure all data is written to the file
